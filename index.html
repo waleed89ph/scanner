@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Micro-Cap Long Scanner — FMP Live</title>
+<title>Micro-Cap Long Scanner — FMP Free</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -141,6 +141,18 @@
   .detail-plan div span{color:var(--mut2);margin-right:6px}
   .foot-note{margin-top:26px;color:var(--mut2);font-size:11px;line-height:1.7;border-top:1px solid var(--line);padding-top:14px}
   .foot-note b{color:var(--mut)}
+
+  /* live price flash */
+  @keyframes tickUp{0%{background:rgba(52,211,153,.35)}100%{background:transparent}}
+  @keyframes tickDown{0%{background:rgba(251,106,106,.35)}100%{background:transparent}}
+  .tick-up{animation:tickUp .8s ease-out}
+  .tick-down{animation:tickDown .8s ease-out}
+</style>
+
+<style>
+  .rmeth{display:inline-block;font-size:8.5px;font-weight:700;border-radius:3px;padding:0 3px;margin-left:4px;vertical-align:top}
+  .proxy{color:var(--amber-d);background:#2a2410}
+  .planbadge{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.4px;border-radius:4px;padding:2px 7px;margin-left:8px;vertical-align:middle;color:#9ac6ff;background:#152740;border:1px solid #244067}
 </style>
 </head>
 <body>
@@ -148,65 +160,68 @@
   <header>
     <div class="brand">
       <div>
-        <div class="tick">MICRO<span class="lo">·</span>CAP LONG SCANNER</div>
-        <div class="sub">$1–$5 • long-only • FMP live data</div>
+        <div class="tick">MICRO<span class="lo">&middot;</span>CAP LONG SCANNER<span class="planbadge">FREE PLAN</span></div>
+        <div class="sub">$1&ndash;$5 &bull; long-only &bull; FMP most-actives + gainers</div>
       </div>
     </div>
     <div style="text-align:right">
-      <div class="sess"><span id="sessDot" class="dot"></span><span id="sessLabel">—</span></div>
-      <div class="clock" id="clock">ET —</div>
+      <div class="sess"><span id="sessDot" class="dot"></span><span id="sessLabel">&mdash;</span></div>
+      <div class="sess" id="liveChip" style="display:none;margin-top:6px"><span id="liveDot" class="dot"></span><span id="liveLabel">live &mdash;</span></div>
+      <div class="clock" id="clock">ET &mdash;</div>
     </div>
   </header>
 
-  <div class="keywarn">
-    <b>⚠ Rotate your API key.</b> The key you sent is now exposed in chat history. Generate a fresh one in your FMP dashboard, paste it below, and treat this as the live key. Anyone with the key can spend your request quota.
+  <div class="keywarn" style="border-left-color:var(--blu);background:linear-gradient(90deg,#10243f,transparent);color:#cfe3ff">
+    <b>Connect your proxy.</b> FMP's stable endpoints can't be called directly from a browser (CORS), so this dashboard talks to your own Cloudflare Worker, which holds your API key safely and adds CORS. Paste the Worker URL below.
   </div>
 
   <div class="cfg">
     <div class="cfg-grid">
       <div class="fld k">
-        <label>FMP API key</label>
-        <input id="apikey" type="text" placeholder="paste your (rotated) FMP key" />
+        <label>Proxy (Cloudflare Worker) URL</label>
+        <input id="proxy" type="text" placeholder="https://fmp-proxy.yourname.workers.dev" />
+      </div>
+      <div class="fld k">
+        <label>Alpaca live proxy URL &mdash; optional &bull; real-time prices every 5s</label>
+        <input id="alpacaProxy" type="text" placeholder="https://alpaca-live.yourname.workers.dev" />
       </div>
       <div class="fld"><label>Price min ($)</label><input id="pmin" type="number" step="0.1" value="1" /></div>
       <div class="fld"><label>Price max ($)</label><input id="pmax" type="number" step="0.1" value="5" /></div>
-      <div class="fld"><label>RVOL min (×)</label><input id="rvol" type="number" step="0.1" value="2" /></div>
-      <div class="fld"><label>Unusual vol ≥ (×)</label><input id="unusual" type="number" step="0.5" value="3" /></div>
-      <div class="fld"><label>RSI min (&gt;)</label><input id="rsimin" type="number" step="1" value="50" /></div>
+      <div class="fld"><label>RVOL min (&times;)</label><input id="rvol" type="number" step="0.1" value="2" /></div>
+      <div class="fld"><label>Unusual vol &ge; (&times;)</label><input id="unusual" type="number" step="0.5" value="3" /></div>
       <div class="fld"><label>Float max (M shares)</label><input id="floatmax" type="number" step="1" value="20" /></div>
       <div class="fld"><label>Prime float (M)</label><input id="primefloat" type="number" step="0.5" value="1" /></div>
       <div class="fld"><label>Min day volume</label><input id="minvol" type="number" step="50000" value="300000" /></div>
       <div class="fld">
-        <label>Indicator timeframe</label>
-        <select id="tf">
-          <option value="1min">1 min</option>
-          <option value="5min" selected>5 min</option>
-          <option value="15min">15 min</option>
-          <option value="30min">30 min</option>
-          <option value="1hour">1 hour</option>
-        </select>
-      </div>
-      <div class="fld">
         <label>Country</label>
         <select id="country">
-          <option value="">All</option>
-          <option value="US" selected>US</option>
+          <option value="" selected>All</option>
+          <option value="US">US</option>
           <option value="CN">China (CN)</option>
           <option value="HK">Hong Kong</option>
           <option value="IL">Israel</option>
           <option value="CA">Canada</option>
         </select>
       </div>
-      <div class="fld"><label>Max symbols to scan</label><input id="maxsym" type="number" step="5" value="25" /></div>
+      <div class="fld">
+        <label>Universe</label>
+        <select id="universe">
+          <option value="both" selected>Actives + Gainers</option>
+          <option value="actives">Most actives</option>
+          <option value="gainers">Biggest gainers</option>
+        </select>
+      </div>
+      <div class="fld"><label>Max symbols to scan</label><input id="maxsym" type="number" step="5" value="15" /></div>
     </div>
     <div class="cfg-foot">
-      <button id="scanBtn" class="btn btn-go">▶ Run scan</button>
+      <button id="scanBtn" class="btn btn-go">&#9654; Run scan</button>
       <label class="chk"><input id="floatStrict" type="checkbox" /> Require known float (drop unknown)</label>
+      <label class="chk"><input id="hideEtf" type="checkbox" checked /> Hide ETFs</label>
       <label class="chk"><input id="autoref" type="checkbox" /> Auto-refresh</label>
       <select id="refsec" class="btn-ghost" style="padding:8px;border-radius:7px;background:var(--ink2)">
         <option value="60">60s</option><option value="120">120s</option><option value="300">300s</option>
       </select>
-      <button id="exportBtn" class="btn btn-ghost">⤓ Export CSV</button>
+      <button id="exportBtn" class="btn btn-ghost">&#10515; Export CSV</button>
       <div class="calls" id="callEst"></div>
     </div>
   </div>
@@ -217,7 +232,7 @@
   </div>
 
   <div class="alerts" id="alertsWrap" style="display:none">
-    <h2>🔔 Alerts — all criteria met</h2>
+    <h2>&#128276; Alerts &mdash; all available criteria met</h2>
     <div class="alert-row" id="alertRow"></div>
   </div>
 
@@ -230,10 +245,10 @@
           <th class="l" data-k="country">Ctry</th>
           <th data-k="price">Price</th>
           <th data-k="chg">Chg%</th>
-          <th data-k="vwapDiff">vs VWAP</th>
+          <th data-k="rangePos">Range</th>
           <th data-k="rvol">RVOL</th>
-          <th data-k="rsi">RSI</th>
-          <th data-k="emaOk">EMA align</th>
+          <th data-k="trend">Trend</th>
+          <th data-k="mom">Mom</th>
           <th data-k="floatM">Float(M)</th>
           <th data-k="unusual">Unusual</th>
           <th data-k="score">Pass</th>
@@ -244,97 +259,23 @@
     </div>
   </div>
 
-  <div class="empty" id="emptyState">Configure filters and press <b style="color:var(--amber)">Run scan</b>. Best results during US market &amp; pre-market hours.</div>
+  <div class="empty" id="emptyState">Press <b style="color:var(--amber)">Run scan</b>. Best during US market &amp; pre-market hours, when movers are active.</div>
 
   <div class="foot-note">
-    <b>How the math works.</b> Indicators (VWAP / RSI-14 / EMA-20-50-200 / ATR-14) are computed in your browser from FMP intraday bars on the selected timeframe, so they don't burn extra API calls. VWAP is session-based (resets each day). <b>RVOL.</b> When at least 2 prior days of intraday bars are available, RVOL is <b>time-adjusted</b> (tag <span class="rmeth ta">TA</span>): today's cumulative volume up to the current time of day ÷ the typical cumulative volume by that same time of day across prior days — so a pre-market or early-session read isn't understated. If there isn't enough intraday history it falls back to the daily proxy (tag <span class="rmeth d">D</span>: day volume ÷ 30-day average). Float comes from FMP's shares-float endpoint; if your plan doesn't include it, float shows <span class="unk">?</span>.<br>
-    <b>Trade plan (long-only).</b> Entry = last price. Stop = nearest structural support (recent swing low or VWAP) below entry, widened to ≥1×ATR if too tight. R = entry−stop. TP1/TP2/TP3 = entry +1R/+2R/+3R. These are mechanical levels from price action, not advice — size and confirm yourself.<br>
-    <b>Not investment advice.</b> A signal is a starting point for your own analysis, not a recommendation to buy.
+    <b>Free-plan data note.</b> Your FMP plan returns end-of-day &amp; real-time quotes but <b>not intraday charts</b>, so true intraday VWAP, RSI(14) and EMA20/50/200 aren't computable here (those need FMP's Premium intraday + technical endpoints). This scanner uses honest proxies, each tagged <span class="rmeth proxy">~</span>:<br>
+    &bull; <b>Range</b> = where price sits in today's high&ndash;low band; upper half (&ge;50%) is the &ldquo;above-VWAP&rdquo; proxy.<br>
+    &bull; <b>Trend</b> = daily uptrend: price &gt; 50-day avg &gt; 200-day avg (proxy for EMA20&gt;50&gt;200).<br>
+    &bull; <b>Mom</b> = up on the day (proxy for RSI&gt;50).<br>
+    &bull; <b>RVOL</b> = today's volume &divide; 30-day average volume. <b>Float</b> from shares-float; <b>Country</b> from company profile.<br>
+    <b>Trade plan (long-only).</b> Entry = last price. Stop = today's low (or &minus;3% if low &ge; price). R = entry&minus;stop. TP1/TP2/TP3 = entry +1R/+2R/+3R. Mechanical levels, not advice &mdash; confirm and size yourself.<br>
+    <b>Live overlay (optional).</b> If an Alpaca proxy URL is set, price &amp; chg% cells refresh every 5s from Alpaca's free IEX feed (~2&ndash;3% of market volume) &mdash; thin micro-caps may lag your broker by moments. Plan levels stay from scan time; always confirm entries on your broker.<br>
+    <b>Not investment advice.</b>
   </div>
 </div>
-
 <script>
-// ===================== tested indicator math (verbatim) =====================
-function emaSeries(values, period){
-  const out=new Array(values.length).fill(null);
-  if(values.length<period) return out;
-  const k=2/(period+1); let seed=0;
-  for(let i=0;i<period;i++) seed+=values[i];
-  seed/=period; out[period-1]=seed; let prev=seed;
-  for(let i=period;i<values.length;i++){ prev=values[i]*k+prev*(1-k); out[i]=prev; }
-  return out;
-}
-function ema(values,period){ const s=emaSeries(values,period); return s.length?s[s.length-1]:null; }
-function rsi(closes,period=14){
-  if(closes.length<period+1) return null;
-  let gain=0,loss=0;
-  for(let i=1;i<=period;i++){ const ch=closes[i]-closes[i-1]; if(ch>=0) gain+=ch; else loss-=ch; }
-  let avgGain=gain/period, avgLoss=loss/period;
-  for(let i=period+1;i<closes.length;i++){
-    const ch=closes[i]-closes[i-1]; const g=ch>0?ch:0, l=ch<0?-ch:0;
-    avgGain=(avgGain*(period-1)+g)/period; avgLoss=(avgLoss*(period-1)+l)/period;
-  }
-  if(avgLoss===0) return 100; if(avgGain===0) return 0;
-  const rs=avgGain/avgLoss; return 100-100/(1+rs);
-}
-function atr(bars,period=14){
-  if(bars.length<period+1) return null;
-  const trs=[];
-  for(let i=1;i<bars.length;i++){
-    const h=bars[i].high,l=bars[i].low,pc=bars[i-1].close;
-    trs.push(Math.max(h-l,Math.abs(h-pc),Math.abs(l-pc)));
-  }
-  let seed=0; for(let i=0;i<period;i++) seed+=trs[i]; let prev=seed/period;
-  for(let i=period;i<trs.length;i++) prev=(prev*(period-1)+trs[i])/period;
-  return prev;
-}
-function sessionVWAP(bars,dayKeyFn){
-  if(!bars.length) return null;
-  const lastKey=dayKeyFn(bars[bars.length-1]); let cumPV=0,cumV=0;
-  for(const b of bars){ if(dayKeyFn(b)!==lastKey) continue;
-    const tp=(b.high+b.low+b.close)/3; cumPV+=tp*b.volume; cumV+=b.volume; }
-  return cumV===0?null:cumPV/cumV;
-}
-function recentSwingLow(bars,lookback=20){
-  const start=Math.max(0,bars.length-lookback); let lo=Infinity;
-  for(let i=start;i<bars.length;i++) lo=Math.min(lo,bars[i].low);
-  return lo===Infinity?null:lo;
-}
-// Time-adjusted RVOL: today's cumulative volume up to "now" vs the typical
-// cumulative volume by this same time-of-day over prior days in the dataset.
-// Uses the intraday bars we already fetched — no extra API calls.
-function timeAdjustedRVOL(bars){
-  if(!bars.length) return null;
-  const tod=b=>{ const s=String(b.date); if(s.length<16) return -1;
-    return (+s.slice(11,13))*60+(+s.slice(14,16)); };
-  const days=new Map();
-  for(const b of bars){ const k=String(b.date).slice(0,10);
-    if(!days.has(k)) days.set(k,[]); days.get(k).push(b); }
-  const keys=[...days.keys()];
-  if(keys.length<3) return null;                       // need today + >=2 prior days
-  const todayBars=days.get(keys[keys.length-1]);
-  const cutoff=Math.max(...todayBars.map(tod));
-  if(cutoff<0) return null;
-  let todayCum=0; for(const b of todayBars){ if(tod(b)<=cutoff) todayCum+=b.volume; }
-  const priors=[];
-  for(let i=0;i<keys.length-1;i++){ let c=0;
-    for(const b of days.get(keys[i])){ const t=tod(b); if(t>=0 && t<=cutoff) c+=b.volume; }
-    if(c>0) priors.push(c); }
-  if(priors.length<2) return null;
-  const typical=priors.reduce((a,b)=>a+b,0)/priors.length;
-  if(typical<=0 || todayCum<=0) return null;
-  return {rvol:todayCum/typical, days:priors.length, cutoff, todayCum, typical};
-}
-// ===========================================================================
-
 const $=id=>document.getElementById(id);
-const BASE="https://financialmodelingprep.com/api";
-let lastResults=[];
-let autoTimer=null;
-let sortKey="score", sortDir=-1;
-
-// prefilled key (rotate it!)
-$("apikey").value="sSTGnxOyBFEuKFJ4kGbVTdBGpUVnaRjE";
+const PROXY=()=>$("proxy").value.trim().replace(/\/+$/,'');
+let lastResults=[], autoTimer=null, sortKey="score", sortDir=-1;
 
 // ---------- ET market session ----------
 function etParts(){
@@ -345,94 +286,85 @@ function etParts(){
 }
 function session(){
   const {wd,h,m}=etParts(); const t=h*60+m;
-  const weekend=(wd==='Sat'||wd==='Sun');
-  if(weekend) return {k:'closed',label:'Weekend — market closed'};
+  if(wd==='Sat'||wd==='Sun') return {k:'closed',label:'Weekend — market closed'};
   if(t>=240 && t<570) return {k:'pre',label:'Pre-market (04:00–09:30 ET)'};
   if(t>=570 && t<960) return {k:'live',label:'Regular session (09:30–16:00 ET)'};
   if(t>=960 && t<1200) return {k:'post',label:'After-hours (16:00–20:00 ET)'};
   return {k:'closed',label:'Closed'};
 }
-function tickClock(){
-  const {h,m}=etParts(); const s=session();
-  $("sessDot").className="dot "+s.k;
-  $("sessLabel").textContent=s.label;
-  $("clock").textContent="ET "+String(h).padStart(2,'0')+":"+String(m).padStart(2,'0');
-}
+function tickClock(){ const {h,m}=etParts(); const s=session();
+  $("sessDot").className="dot "+s.k; $("sessLabel").textContent=s.label;
+  $("clock").textContent="ET "+String(h).padStart(2,'0')+":"+String(m).padStart(2,'0'); }
 setInterval(tickClock,15000); tickClock();
 
-// ---------- logging ----------
 function logLine(msg,cls){ const l=$("log"); const d=document.createElement('div');
   if(cls) d.className=cls; d.textContent=msg; l.appendChild(d); l.scrollTop=l.scrollHeight; }
 function setBar(p){ $("barfill").style.width=Math.round(p*100)+"%"; }
 
-// ---------- fetch helper ----------
 async function fmp(path){
-  const key=$("apikey").value.trim();
-  const url=`${BASE}${path}${path.includes('?')?'&':'?'}apikey=${encodeURIComponent(key)}`;
+  const base=PROXY();
+  if(!base){ return {ok:false,error:'Set your Cloudflare Worker URL at the top first'}; }
+  const url=base+path;   // worker maps /endpoint?params -> FMP /stable/endpoint?params&apikey=KEY
   try{
-    const r=await fetch(url);
-    let data; const txt=await r.text();
+    const r=await fetch(url); const txt=await r.text(); let data;
     try{ data=JSON.parse(txt); }catch{ return {ok:false,error:`Bad JSON (HTTP ${r.status})`}; }
     if(data && data["Error Message"]) return {ok:false,error:data["Error Message"]};
+    if(typeof data==='string' && /Restricted Endpoint/i.test(data)) return {ok:false,error:'Restricted (not in your plan)'};
+    if(data && typeof data==='object' && !Array.isArray(data) && /Restricted Endpoint/i.test(JSON.stringify(data))) return {ok:false,error:'Restricted (not in your plan)'};
     if(!r.ok) return {ok:false,error:`HTTP ${r.status}`};
     return {ok:true,data};
   }catch(e){ return {ok:false,error:e.message||"network/CORS error"}; }
 }
 
-// ---------- evaluate one symbol ----------
-const dayKey=b=>String(b.date).slice(0,10);
-
-function buildPlan(price,bars,vwap){
-  const a=atr(bars,14);
-  const swing=recentSwingLow(bars,20);
-  let cands=[swing,vwap].filter(x=>x!=null && x<price);
-  let stop = cands.length? Math.max(...cands) : (a?price-1.5*a:price*0.97);
-  if(a && (price-stop) < a){ stop = price - a; }      // never tighter than 1 ATR
-  if(stop>=price) stop = price*0.97;
+// ---------- trade plan ----------
+function buildPlan(price, dayLow){
+  let stop = (dayLow && dayLow>0 && dayLow<price)? dayLow : price*0.97;
   const R = price-stop;
-  return {
-    entry:price, stop,
-    tp1:price+R, tp2:price+2*R, tp3:price+3*R,
-    risk:R, atr:a
-  };
+  return {entry:price, stop, tp1:price+R, tp2:price+2*R, tp3:price+3*R, risk:R};
 }
 
-function evalSymbol(q, bars, floatShares, country, cfg){
-  const closes=bars.map(b=>b.close);
-  const price=q.price;
-  const vwap=sessionVWAP(bars,dayKey);
-  const e20=ema(closes,20), e50=ema(closes,50), e200=ema(closes,200);
-  const r=rsi(closes,14);
-  const ta=timeAdjustedRVOL(bars);
-  const dailyRvol=(q.volume && q.avgVolume)? q.volume/q.avgVolume : null;
-  const rvol = ta? ta.rvol : dailyRvol;
-  const rvolMethod = ta? 'TA' : (dailyRvol!=null?'D':null);
-  const rvolDays = ta? ta.days : null;
-  const emaOk = (e20!=null&&e50!=null&&e200!=null)? (e20>e50 && e50>e200) : null;
-  const floatM = floatShares!=null? floatShares/1e6 : null;
+// ---------- evaluate one symbol ----------
+function evalSymbol(m, q, prof, floatShares, cfg){
+  const price = (q&&q.price)? q.price : m.price;
+  const dayLow = q? q.dayLow : null, dayHigh = q? q.dayHigh : null, open = q? q.open : null;
+  const chg = (q&&q.changePercentage!=null)? q.changePercentage : (m.changesPercentage!=null? m.changesPercentage : null);
 
   const cPrice = price>=cfg.pmin && price<=cfg.pmax;
-  const cVwap = vwap!=null? price>vwap : null;
-  const cRvol = rvol!=null? rvol>=cfg.rvol : null;
-  const cRsi  = r!=null? r>cfg.rsimin : null;
-  const cEma  = emaOk;
-  const cFloat= floatM!=null? floatM<cfg.floatmax : (cfg.floatStrict? false : null);
 
-  const checks=[cPrice,cVwap,cRvol,cRsi,cEma,cFloat];
-  const passCount=checks.filter(x=>x===true).length;
-  const known=checks.filter(x=>x!==null).length;
-  const hardPass = cPrice===true && cVwap===true && cRvol===true && cRsi===true && cEma===true && cFloat===true;
+  // range position (VWAP proxy)
+  let rangePos=null, cMid=null;
+  if(dayHigh!=null && dayLow!=null && dayHigh>dayLow){ rangePos=(price-dayLow)/(dayHigh-dayLow)*100; cMid=rangePos>=50; }
+
+  // RVOL (daily proxy)
+  const avgVol = prof? (prof.averageVolume!=null?prof.averageVolume:(prof.volAvg!=null?prof.volAvg:(prof.avgVolume!=null?prof.avgVolume:null))) : null;
+  const vol = q? q.volume : m.volume;
+  const rvol = (vol && avgVol)? vol/avgVol : null;
+  const cRvol = rvol!=null? rvol>=cfg.rvol : null;
+
+  // trend (EMA proxy) : price > SMA50 > SMA200
+  const a = q? q.priceAvg50 : null, b = q? q.priceAvg200 : null;
+  const cTrend = (a!=null && b!=null)? (price>a && a>b) : null;
+
+  // momentum (RSI proxy)
+  const cMom = chg!=null? chg>0 : null;
+
+  const floatM = floatShares!=null? floatShares/1e6 : null;
+  const cFloat = floatM!=null? floatM<cfg.floatmax : (cfg.floatStrict? false : null);
+
   const unusual = rvol!=null && rvol>=cfg.unusual;
   const prime = floatM!=null && floatM<cfg.primefloat;
-  const chg = q.previousClose? (price-q.previousClose)/q.previousClose*100 : null;
+  const country = (prof && prof.country)? prof.country : (m.country||'—');
+
+  const checks=[cPrice,cMid,cRvol,cTrend,cMom,cFloat];
+  const passCount=checks.filter(x=>x===true).length;
+  const hardPass = cPrice===true && cMid===true && cRvol===true && cTrend===true && cMom===true && cFloat===true;
 
   return {
-    symbol:q.symbol, name:q.name||q.companyName||"", country:country||"—",
-    price, chg, vwap, vwapDiff: vwap!=null?(price-vwap)/vwap*100:null,
-    rvol, rvolMethod, rvolDays, rsi:r, e20,e50,e200, emaOk, floatM, unusual, prime,
-    cPrice,cVwap,cRvol,cRsi,cEma,cFloat,
-    passCount, known, alert:hardPass, score: passCount + (hardPass?10:0),
-    plan: buildPlan(price,bars,vwap)
+    symbol:m.symbol, name:(prof&&prof.companyName)||m.name||"", country,
+    price, chg, rangePos, cMid, rvol, cRvol, trend:cTrend, cTrend, mom:chg, cMom,
+    floatM, cFloat, unusual, prime, avgVol,
+    passCount, alert:hardPass, score:passCount+(hardPass?10:0),
+    plan: buildPlan(price, dayLow)
   };
 }
 
@@ -440,73 +372,69 @@ function evalSymbol(q, bars, floatShares, country, cfg){
 async function runScan(){
   const cfg={
     pmin:+$("pmin").value, pmax:+$("pmax").value, rvol:+$("rvol").value,
-    unusual:+$("unusual").value, rsimin:+$("rsimin").value, floatmax:+$("floatmax").value,
-    primefloat:+$("primefloat").value, minvol:+$("minvol").value, tf:$("tf").value,
-    country:$("country").value, maxsym:Math.max(1,+$("maxsym").value),
-    floatStrict:$("floatStrict").checked
+    unusual:+$("unusual").value, floatmax:+$("floatmax").value, primefloat:+$("primefloat").value,
+    minvol:+$("minvol").value, country:$("country").value, maxsym:Math.max(1,+$("maxsym").value),
+    floatStrict:$("floatStrict").checked, hideEtf:$("hideEtf").checked, universe:$("universe").value
   };
-  if(!$("apikey").value.trim()){ alert("Paste your FMP API key first."); return; }
-
+  if(!PROXY()){ alert("Paste your Cloudflare Worker (proxy) URL at the top first."); return; }
   $("scanBtn").disabled=true; $("status").classList.add("show");
-  $("emptyState").style.display="none";
-  $("log").innerHTML=""; setBar(0);
+  $("emptyState").style.display="none"; $("log").innerHTML=""; setBar(0);
   logLine(`Scan started · ${session().label}`,'w');
 
-  // 1) screener
-  let scr=`/v3/stock-screener?priceMoreThan=${cfg.pmin}&priceLowerThan=${cfg.pmax}`+
-          `&volumeMoreThan=${cfg.minvol}&exchange=nasdaq,nyse,amex&isActivelyTrading=true&limit=400`;
-  if(cfg.country) scr+=`&country=${cfg.country}`;
-  const sres=await fmp(scr);
-  if(!sres.ok){ logLine("Screener failed: "+sres.error,'e'); finish(); return; }
-  if(!Array.isArray(sres.data)||!sres.data.length){ logLine("Screener returned 0 names — loosen filters.",'w'); finish(); render([]); return; }
-  let universe=sres.data
-    .filter(s=>s.price>=cfg.pmin && s.price<=cfg.pmax)
-    .sort((a,b)=>(b.volume||0)-(a.volume||0))
-    .slice(0,cfg.maxsym);
-  logLine(`Screener ok · ${sres.data.length} names → enriching top ${universe.length}`,'ok');
+  // 1) universe from movers
+  let pool=[];
+  const wantA = cfg.universe!=='gainers', wantG = cfg.universe!=='actives';
+  if(wantA){ const r=await fmp(`/most-actives`);
+    if(r.ok&&Array.isArray(r.data)){ pool.push(...r.data); logLine(`most-actives ok · ${r.data.length}`,'ok'); }
+    else logLine(`most-actives failed: ${r.error}`,'e'); }
+  if(wantG){ const r=await fmp(`/biggest-gainers`);
+    if(r.ok&&Array.isArray(r.data)){ pool.push(...r.data); logLine(`biggest-gainers ok · ${r.data.length}`,'ok'); }
+    else logLine(`biggest-gainers failed: ${r.error}`,'w'); }
+  if(!pool.length){ logLine("No universe data — check key/plan.",'e'); finish(); render([]); return; }
 
-  const countryMap={}; universe.forEach(s=>countryMap[s.symbol]=s.country);
-  const symbols=universe.map(s=>s.symbol);
+  // dedupe, price filter, ETF filter, sort by |%change|, cap
+  const seen=new Set(); let cand=[];
+  for(const s of pool){ if(!s.symbol||seen.has(s.symbol)) continue; seen.add(s.symbol);
+    const px=+s.price; if(!(px>=cfg.pmin && px<=cfg.pmax)) continue;
+    if(cfg.hideEtf && /\b(ETF|ETN)\b/i.test(s.name||'')) continue;
+    cand.push(s); }
+  cand.sort((x,y)=>Math.abs(+y.changesPercentage||0)-Math.abs(+x.changesPercentage||0));
+  cand=cand.slice(0,cfg.maxsym);
+  if(!cand.length){ logLine("No $1–5 movers right now — loosen price or scan in market hours.",'w'); finish(); render([]); return; }
+  logLine(`${cand.length} candidates in $${cfg.pmin}–$${cfg.pmax} → enriching`,'ok');
 
-  // 2) batch quote
-  const qres=await fmp(`/v3/quote/${symbols.join(",")}`);
-  if(!qres.ok){ logLine("Quote failed: "+qres.error,'e'); finish(); return; }
-  const quotes={}; (qres.data||[]).forEach(q=>quotes[q.symbol]=q);
-  logLine(`Quotes ok · ${Object.keys(quotes).length} symbols`,'ok');
+  // 2) enrich each: quote + profile + float
+  const out=[]; let done=0, profFails=0, floatFails=0, qFails=0;
+  for(const m of cand){
+    const sym=m.symbol;
+    const qr=await fmp(`/quote?symbol=${sym}`);
+    const q = (qr.ok && Array.isArray(qr.data) && qr.data[0])? qr.data[0] : null;
+    if(!q){ qFails++; }
 
-  // 3) per-symbol enrich (history + float)
-  const out=[]; let done=0; let floatFails=0, histFails=0;
-  for(const sym of symbols){
-    const q=quotes[sym]; if(!q){ done++; setBar(done/symbols.length); continue; }
-
-    const hres=await fmp(`/v3/historical-chart/${cfg.tf}/${sym}`);
-    let bars=[];
-    if(hres.ok && Array.isArray(hres.data) && hres.data.length){
-      bars=hres.data.slice().reverse().map(b=>({
-        date:b.date, open:+b.open, high:+b.high, low:+b.low, close:+b.close, volume:+b.volume
-      }));
-    } else { histFails++; if(histFails<=2) logLine(`No intraday bars for ${sym}${hres.error?' ('+hres.error+')':''}`,'w'); }
+    const pr=await fmp(`/profile?symbol=${sym}`);
+    const prof = (pr.ok && Array.isArray(pr.data) && pr.data[0])? pr.data[0] : null;
+    if(!prof){ profFails++; }
 
     let floatShares=null;
-    const fres=await fmp(`/v4/shares_float?symbol=${sym}`);
-    if(fres.ok && Array.isArray(fres.data) && fres.data.length && fres.data[0].floatShares!=null){
-      floatShares=+fres.data[0].floatShares;
-    } else { floatFails++; }
+    const fr=await fmp(`/shares-float?symbol=${sym}`);
+    if(fr.ok && Array.isArray(fr.data) && fr.data[0] && fr.data[0].floatShares!=null) floatShares=+fr.data[0].floatShares;
+    else floatFails++;
 
-    if(bars.length>=15){
-      out.push(evalSymbol(q,bars,floatShares,countryMap[sym]||q.country,cfg));
-    } else {
-      // still show the row with limited data so nothing silently vanishes
-      out.push(evalSymbol(q,bars.length?bars:[{date:q.timestamp||"",open:q.open,high:q.dayHigh,low:q.dayLow,close:q.price,volume:q.volume}],floatShares,countryMap[sym]||q.country,cfg));
-    }
-    done++; setBar(done/symbols.length);
-    await new Promise(r=>setTimeout(r,120)); // gentle pacing
+    // min volume + country + ETF (profile) filters
+    if(q && q.volume!=null && q.volume<cfg.minvol){ done++; setBar(done/cand.length); continue; }
+    if(cfg.hideEtf && prof && prof.isEtf===true){ done++; setBar(done/cand.length); continue; }
+    const row=evalSymbol(m,q,prof,floatShares,cfg);
+    if(cfg.country && row.country && row.country!==cfg.country){ done++; setBar(done/cand.length); continue; }
+    out.push(row);
+    done++; setBar(done/cand.length);
+    await new Promise(r=>setTimeout(r,110));
   }
-  if(floatFails===symbols.length) logLine("Float endpoint unavailable on this plan — float shown as ?.",'w');
-  logLine(`Done · ${out.length} evaluated · ${out.filter(o=>o.alert).length} full alerts`,'ok');
+  if(profFails===cand.length) logLine("Profile endpoint unavailable — RVOL/country may show ?.",'w');
+  if(floatFails===cand.length) logLine("Float endpoint unavailable — float shown as ?.",'w');
+  if(qFails===cand.length) logLine("Quote endpoint returned nothing — check key/plan.",'e');
+  logLine(`Done · ${out.length} shown · ${out.filter(o=>o.alert).length} full alerts`,'ok');
   finish(); render(out);
 }
-
 function finish(){ $("scanBtn").disabled=false; setBar(1); }
 
 // ---------- render ----------
@@ -517,30 +445,22 @@ function ctryFlag(c){ const cl=c==='US'?'us':(c==='CN'||c==='HK'?'cn':''); retur
 
 function render(rows){
   lastResults=rows;
-  const sorted=rows.slice().sort((a,b)=>{
-    let va=a[sortKey], vb=b[sortKey];
-    va=(va==null||isNaN(va))?-1e15:va; vb=(vb==null||isNaN(vb))?-1e15:vb;
-    return (va-vb)*sortDir;
-  });
-
-  // alerts strip
+  const sorted=rows.slice().sort((a,b)=>{ let va=a[sortKey],vb=b[sortKey];
+    va=(va==null||isNaN(va))?-1e15:va; vb=(vb==null||isNaN(vb))?-1e15:vb; return (va-vb)*sortDir; });
   const alerts=rows.filter(r=>r.alert);
   $("alertsWrap").style.display=alerts.length?"block":"none";
-  $("alertRow").innerHTML=alerts.map(r=>{
-    const p=r.plan;
+  $("alertRow").innerHTML=alerts.map(r=>{ const p=r.plan;
     return `<div class="card"><div class="top"><span class="sym">${r.symbol}${r.prime?'<span class="prime">PRIME</span>':''}</span>
-      <span class="px">$${fmtNum(r.price)}</span></div>
-      <div class="meta">${ctryFlag(r.country)} RVOL ${fmtNum(r.rvol,1)}×${r.rvolMethod==='TA'?'ᵀᴬ':'ᴰ'} · RSI ${fmtNum(r.rsi,0)} · ${r.name.slice(0,26)}</div>
+      <span class="px" data-live-price="${r.symbol}">$${fmtNum(r.price)}</span></div>
+      <div class="meta">${ctryFlag(r.country)} RVOL ${fmtNum(r.rvol,1)}× · <span data-live-change="${r.symbol}">${fmtPct(r.chg)}</span> · ${(r.name||'').slice(0,24)}</div>
       <div class="plan">
         <span class="lab">Entry</span><span class="ent">$${fmtNum(p.entry)}</span>
         <span class="lab">Stop</span><span class="stp">$${fmtNum(p.stop)} (−${fmtNum(p.risk)})</span>
         <span class="lab">TP1 (1R)</span><span class="tp">$${fmtNum(p.tp1)}</span>
         <span class="lab">TP2 (2R)</span><span class="tp">$${fmtNum(p.tp2)}</span>
         <span class="lab">TP3 (3R)</span><span class="tp">$${fmtNum(p.tp3)}</span>
-      </div></div>`;
-  }).join("");
+      </div></div>`; }).join("");
 
-  // table
   $("resultsWrap").style.display=rows.length?"block":"none";
   $("resCount").textContent=rows.length?`· ${rows.length} symbols · ${alerts.length} alerts`:"";
   if(!rows.length){ $("emptyState").style.display="block"; $("emptyState").innerHTML="No symbols matched. Loosen filters or scan during market hours."; return; }
@@ -548,80 +468,128 @@ function render(rows){
   const tb=$("tbody"); tb.innerHTML="";
   sorted.forEach((r,i)=>{
     const tr=document.createElement('tr'); if(r.alert) tr.className="alert";
-    const chgCls=r.chg>=0?'yes':'no';
     tr.innerHTML=`
       <td class="l"><span class="sym-c">${r.symbol}</span>${r.prime?'<span class="prime">PRIME</span>':''}<span class="co">${r.name}</span></td>
       <td class="l">${ctryFlag(r.country)}</td>
-      <td>$${fmtNum(r.price)}</td>
-      <td class="${chgCls}">${fmtPct(r.chg)}</td>
-      <td>${r.vwapDiff==null?'<span class="unk">?</span>':(r.cVwap?'<span class="yes">▲ ':'<span class="no">▼ ')+fmtNum(Math.abs(r.vwapDiff),1)+'%</span>'}</td>
-      <td>${r.rvol==null?'<span class="unk">?</span>':(r.cRvol?'<span class="yes">':'<span class="no">')+fmtNum(r.rvol,1)+'×</span>'+(r.rvolMethod?'<span class="rmeth '+(r.rvolMethod==='TA'?'ta':'d')+'" title="'+(r.rvolMethod==='TA'?('time-adjusted vs '+r.rvolDays+' prior days'):'daily proxy (vol / avg vol)')+'">'+r.rvolMethod+'</span>':'')}</td>
-      <td>${r.rsi==null?'<span class="unk">?</span>':(r.cRsi?'<span class="yes">':'<span class="no">')+fmtNum(r.rsi,0)+'</span>'}</td>
-      <td>${tri(r.cEma)}</td>
+      <td data-live-price="${r.symbol}">$${fmtNum(r.price)}</td>
+      <td class="${r.chg>=0?'yes':'no'}" data-live-change="${r.symbol}">${fmtPct(r.chg)}</td>
+      <td>${r.rangePos==null?'<span class="unk">?</span>':(r.cMid?'<span class="yes">':'<span class="no">')+fmtNum(r.rangePos,0)+'%</span>'}<span class="rmeth proxy">~</span></td>
+      <td>${r.rvol==null?'<span class="unk">?</span>':(r.cRvol?'<span class="yes">':'<span class="no">')+fmtNum(r.rvol,1)+'×</span>'}</td>
+      <td>${tri(r.cTrend)}<span class="rmeth proxy">~</span></td>
+      <td>${tri(r.cMom)}<span class="rmeth proxy">~</span></td>
       <td>${r.floatM==null?'<span class="unk">?</span>':(r.cFloat?'<span class="yes">':'<span class="no">')+fmtNum(r.floatM,1)+'</span>'}</td>
       <td>${r.unusual?'<span class="unu">⚡ '+fmtNum(r.rvol,1)+'×</span>':'<span class="no">—</span>'}</td>
       <td><span class="pill ${r.alert?'a':'b'}">${r.passCount}/6</span></td>
       <td class="l"><span class="expand" data-i="${i}">plan ▾</span></td>`;
     tb.appendChild(tr);
-
     const dr=document.createElement('tr'); dr.className="detail"; dr.style.display="none";
     const p=r.plan;
     dr.innerHTML=`<td colspan="12"><div class="detail-plan">
-      <div><span>Entry</span><b class="ent" style="color:var(--blu)">$${fmtNum(p.entry)}</b></div>
+      <div><span>Entry</span><b style="color:var(--blu)">$${fmtNum(p.entry)}</b></div>
       <div><span>Stop</span><b style="color:var(--red)">$${fmtNum(p.stop)}</b></div>
       <div><span>Risk (1R)</span><b>$${fmtNum(p.risk)}</b></div>
       <div><span>TP1</span><b style="color:var(--grn)">$${fmtNum(p.tp1)} (1:1)</b></div>
       <div><span>TP2</span><b style="color:var(--grn)">$${fmtNum(p.tp2)} (1:2)</b></div>
       <div><span>TP3</span><b style="color:var(--grn)">$${fmtNum(p.tp3)} (1:3)</b></div>
-      <div><span>ATR14</span><b>${fmtNum(p.atr)}</b></div>
-      <div><span>VWAP</span><b>${fmtNum(r.vwap)}</b></div>
-      <div><span>EMA 20/50/200</span><b>${fmtNum(r.e20)} / ${fmtNum(r.e50)} / ${fmtNum(r.e200)}</b></div>
+      <div><span>Day range pos</span><b>${fmtNum(r.rangePos,0)}%</b></div>
+      <div><span>Avg vol</span><b>${r.avgVol?Math.round(r.avgVol).toLocaleString():'—'}</b></div>
     </div></td>`;
     tb.appendChild(dr);
   });
-
-  tb.querySelectorAll('.expand').forEach(el=>{
-    el.onclick=()=>{ const row=el.closest('tr').nextElementSibling;
-      const open=row.style.display!=="none"; row.style.display=open?"none":"table-row";
-      el.textContent=open?"plan ▾":"plan ▴"; };
-  });
+  tb.querySelectorAll('.expand').forEach(el=>{ el.onclick=()=>{ const row=el.closest('tr').nextElementSibling;
+    const open=row.style.display!=="none"; row.style.display=open?"none":"table-row"; el.textContent=open?"plan ▾":"plan ▴"; }; });
 }
 
-// sorting
-document.querySelectorAll('thead th[data-k]').forEach(th=>{
-  th.onclick=()=>{ const k=th.dataset.k;
-    if(sortKey===k) sortDir*=-1; else { sortKey=k; sortDir=-1; }
-    render(lastResults); };
-});
+document.querySelectorAll('thead th[data-k]').forEach(th=>{ th.onclick=()=>{ const k=th.dataset.k;
+  if(sortKey===k) sortDir*=-1; else { sortKey=k; sortDir=-1; } render(lastResults); }; });
 
-// CSV export
 $("exportBtn").onclick=()=>{
   if(!lastResults.length){ alert("Run a scan first."); return; }
-  const head=["symbol","name","country","price","chg%","rvol","rvol_method","rvol_days","rsi","ema_aligned","float_M","unusual","passes","alert","entry","stop","tp1","tp2","tp3"];
+  const head=["symbol","name","country","price","chg%","range_pos%","rvol","trend_up","momentum_up","float_M","unusual","passes","alert","entry","stop","tp1","tp2","tp3"];
   const lines=[head.join(",")];
   lastResults.forEach(r=>{const p=r.plan;
-    lines.push([r.symbol,'"'+(r.name||"").replace(/"/g,"")+'"',r.country,
-      fmtNum(r.price),fmtNum(r.chg),fmtNum(r.rvol,2),r.rvolMethod||"",r.rvolDays||"",fmtNum(r.rsi,1),r.emaOk,
-      fmtNum(r.floatM,2),r.unusual,r.passCount+"/6",r.alert,
-      fmtNum(p.entry),fmtNum(p.stop),fmtNum(p.tp1),fmtNum(p.tp2),fmtNum(p.tp3)].join(","));
-  });
+    lines.push([r.symbol,'"'+(r.name||"").replace(/"/g,"")+'"',r.country,fmtNum(r.price),fmtNum(r.chg),
+      fmtNum(r.rangePos,0),fmtNum(r.rvol,2),r.cTrend,r.cMom,fmtNum(r.floatM,2),r.unusual,r.passCount+"/6",r.alert,
+      fmtNum(p.entry),fmtNum(p.stop),fmtNum(p.tp1),fmtNum(p.tp2),fmtNum(p.tp3)].join(","));});
   const blob=new Blob([lines.join("\n")],{type:"text/csv"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
   a.download="scan_"+new Date().toISOString().slice(0,16).replace(/[:T]/g,"-")+".csv"; a.click();
 };
 
-// call estimate
 function updEst(){ const n=Math.max(1,+$("maxsym").value);
-  $("callEst").textContent=`≈ ${2+2*n} API calls / scan (1 screener + 1 quote + ${n} history + ${n} float)`; }
+  $("callEst").textContent=`≈ ${2+3*n} API calls / scan (movers + ${n}×[quote+profile+float])`; }
 $("maxsym").oninput=updEst; updEst();
 
-// auto-refresh
 function setupAuto(){ if(autoTimer){clearInterval(autoTimer);autoTimer=null;}
-  if($("autoref").checked){ const s=+$("refsec").value*1000;
-    autoTimer=setInterval(()=>{ if(!$("scanBtn").disabled) runScan(); }, s); } }
+  if($("autoref").checked){ autoTimer=setInterval(()=>{ if(!$("scanBtn").disabled) runScan(); }, +$("refsec").value*1000); } }
 $("autoref").onchange=setupAuto; $("refsec").onchange=setupAuto;
-
 $("scanBtn").onclick=runScan;
+
+// ---------- Alpaca live prices (optional overlay) ----------
+const ALPACA=()=>$("alpacaProxy").value.trim().replace(/\/+$/,'');
+const LIVE_MS=5000;            // refresh every 5s ≈ 12 req/min (Alpaca free: 200/min)
+let liveTimer=null, liveLast={}, liveFails=0;
+
+function liveStatus(ok,msg){
+  const chip=$("liveChip");
+  if(!ALPACA()){ chip.style.display="none"; return; }
+  chip.style.display="flex";
+  $("liveDot").className="dot "+(ok?"live":"closed");
+  $("liveLabel").textContent=msg;
+}
+
+async function liveTick(){
+  const base=ALPACA();
+  if(!base){ liveStatus(false,""); return; }
+  if(!lastResults.length){ liveStatus(true,"LIVE ready — run a scan"); return; }
+  const syms=[...new Set(lastResults.map(r=>r.symbol))].slice(0,50);
+  try{
+    const r=await fetch(base+"/?symbols="+encodeURIComponent(syms.join(",")));
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const data=await r.json();
+    if(data && data.error) throw new Error(data.error);
+    let n=0;
+    for(const sym of Object.keys(data||{})){
+      const q=data[sym];
+      if(!q || q.price==null) continue;
+      n++;
+      const px=+q.price, prev=liveLast[sym];
+      document.querySelectorAll('[data-live-price="'+sym+'"]').forEach(el=>{
+        el.textContent="$"+px.toFixed(px<1?4:2);
+        if(prev!=null && prev!==px){
+          el.classList.remove("tick-up","tick-down"); void el.offsetWidth;
+          el.classList.add(px>prev?"tick-up":"tick-down");
+        }
+      });
+      if(q.changePct!=null){
+        document.querySelectorAll('[data-live-change="'+sym+'"]').forEach(el=>{
+          el.textContent=(q.changePct>=0?"+":"")+(+q.changePct).toFixed(2)+"%";
+          el.classList.remove("yes","no");
+          el.classList.add(q.changePct>=0?"yes":"no");
+        });
+      }
+      liveLast[sym]=px;
+    }
+    liveFails=0;
+    liveStatus(true,"ALPACA LIVE · "+n+"/"+syms.length+" · "+new Date().toLocaleTimeString('en-GB',{hour12:false}));
+  }catch(e){
+    liveFails++;
+    liveStatus(false, liveFails>3 ? "live feed down — check worker URL/keys" : "live feed retrying…");
+  }
+}
+function liveStart(){ if(liveTimer) return; liveTick(); liveTimer=setInterval(liveTick,LIVE_MS); }
+function liveStop(){ if(liveTimer){ clearInterval(liveTimer); liveTimer=null; } }
+document.addEventListener("visibilitychange",()=>{ document.hidden?liveStop():liveStart(); });
+$("alpacaProxy").addEventListener("change",()=>{ liveLast={}; liveFails=0; liveTick(); });
+liveStart();
+
+// ---------- remember URLs on this device (safe if storage unavailable) ----------
+try{
+  const sp=localStorage.getItem("scn_proxy"); if(sp && !$("proxy").value) $("proxy").value=sp;
+  const sa=localStorage.getItem("scn_alpaca"); if(sa && !$("alpacaProxy").value){ $("alpacaProxy").value=sa; liveTick(); }
+  $("proxy").addEventListener("change",e=>{ try{localStorage.setItem("scn_proxy",e.target.value.trim());}catch(_){} });
+  $("alpacaProxy").addEventListener("change",e=>{ try{localStorage.setItem("scn_alpaca",e.target.value.trim());}catch(_){} });
+}catch(_){}
 </script>
 </body>
 </html>
