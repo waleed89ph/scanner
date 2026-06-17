@@ -262,13 +262,15 @@
   <div class="empty" id="emptyState">Press <b style="color:var(--amber)">Run scan</b>. Best during US market &amp; pre-market hours, when movers are active.</div>
 
   <div class="foot-note">
-    <b>Free-plan data note.</b> Your FMP plan returns end-of-day &amp; real-time quotes but <b>not intraday charts</b>, so true intraday VWAP, RSI(14) and EMA20/50/200 aren't computable here (those need FMP's Premium intraday + technical endpoints). This scanner uses honest proxies, each tagged <span class="rmeth proxy">~</span>:<br>
-    &bull; <b>Range</b> = where price sits in today's high&ndash;low band; upper half (&ge;50%) is the &ldquo;above-VWAP&rdquo; proxy.<br>
-    &bull; <b>Trend</b> = daily uptrend: price &gt; 50-day avg &gt; 200-day avg (proxy for EMA20&gt;50&gt;200).<br>
+    <b>Free-plan data sourcing.</b> FMP's free plan blocks <code>/quote</code> for most micro-caps ("Premium Endpoint"), so price, day range and volume come from <b>Alpaca</b> (free IEX, covers all symbols), while float, country and average volume come from FMP <code>/profile</code>. Each proxy column is tagged <span class="rmeth proxy">~</span>:<br>
+    &bull; <b>Range</b> = where price sits in today's high&ndash;low band (Alpaca); upper half (&ge;50%) is the &ldquo;above-VWAP&rdquo; proxy.<br>
+    &bull; <b>RVOL</b> = today's Alpaca volume &divide; FMP 30-day average volume.<br>
     &bull; <b>Mom</b> = up on the day (proxy for RSI&gt;50).<br>
-    &bull; <b>RVOL</b> = today's volume &divide; 30-day average volume. <b>Float</b> from shares-float; <b>Country</b> from company profile.<br>
+    &bull; <b>Trend</b> shows <span class="unk">?</span> on the free plan &mdash; 50/200-day averages need FMP's Premium <code>/quote</code>. So alerts use the other 5 checks; <b>Pass = x/5</b>.<br>
+    &bull; <b>Float</b> from shares-float; <b>Country</b> from company profile.<br>
+    <b>Note on Alpaca IEX volume:</b> IEX is ~2&ndash;3% of market volume, so RVOL on very thin names is approximate &mdash; treat it as a relative signal, not an exact multiple.<br>
     <b>Trade plan (long-only).</b> Entry = last price. Stop = today's low (or &minus;3% if low &ge; price). R = entry&minus;stop. TP1/TP2/TP3 = entry +1R/+2R/+3R. Mechanical levels, not advice &mdash; confirm and size yourself.<br>
-    <b>Live overlay (optional).</b> If an Alpaca proxy URL is set, price &amp; chg% cells refresh every 5s from Alpaca's free IEX feed (~2&ndash;3% of market volume) &mdash; thin micro-caps may lag your broker by moments. Plan levels stay from scan time; always confirm entries on your broker.<br>
+    <b>Live overlay.</b> Price &amp; chg% cells refresh every 5s from Alpaca. Always confirm entries on your broker.<br>
     <b>Not investment advice.</b>
   </div>
 </div>
@@ -324,28 +326,34 @@ function buildPlan(price, dayLow){
 }
 
 // ---------- evaluate one symbol ----------
-function evalSymbol(m, q, prof, floatShares, cfg){
-  const price = (q&&q.price)? q.price : m.price;
-  const dayLow = q? q.dayLow : null, dayHigh = q? q.dayHigh : null, open = q? q.open : null;
-  const chg = (q&&q.changePercentage!=null)? q.changePercentage : (m.changesPercentage!=null? m.changesPercentage : null);
+// `a` = Alpaca data {price, prevClose, changePct, dayVolume, dayHigh, dayLow} (free, all symbols)
+// `prof` = FMP profile {country, isEtf, averageVolume, companyName, ...} (free)
+function evalSymbol(m, a, prof, floatShares, cfg){
+  const price = (a&&a.price!=null)? a.price : m.price;
+  const dayLow = a&&a.dayLow!=null? a.dayLow : null;
+  const dayHigh = a&&a.dayHigh!=null? a.dayHigh : null;
+  const chg = (a&&a.changePct!=null)? a.changePct
+            : (m.changesPercentage!=null? m.changesPercentage : null);
 
   const cPrice = price>=cfg.pmin && price<=cfg.pmax;
 
-  // range position (VWAP proxy)
+  // range position (VWAP proxy) — from Alpaca day high/low
   let rangePos=null, cMid=null;
   if(dayHigh!=null && dayLow!=null && dayHigh>dayLow){ rangePos=(price-dayLow)/(dayHigh-dayLow)*100; cMid=rangePos>=50; }
 
-  // RVOL (daily proxy)
-  const avgVol = prof? (prof.averageVolume!=null?prof.averageVolume:(prof.volAvg!=null?prof.volAvg:(prof.avgVolume!=null?prof.avgVolume:null))) : null;
-  const vol = q? q.volume : m.volume;
+  // RVOL = today's volume (Alpaca) / 30-day avg volume (FMP profile)
+  const avgVol = (prof&&prof.averageVolume!=null)?prof.averageVolume
+               : (prof&&prof.volAvg!=null)?prof.volAvg
+               : (prof&&prof.avgVolume!=null)?prof.avgVolume : null;
+  const vol = (a&&a.dayVolume!=null)? a.dayVolume : m.volume;
   const rvol = (vol && avgVol)? vol/avgVol : null;
   const cRvol = rvol!=null? rvol>=cfg.rvol : null;
 
-  // trend (EMA proxy) : price > SMA50 > SMA200
-  const a = q? q.priceAvg50 : null, b = q? q.priceAvg200 : null;
-  const cTrend = (a!=null && b!=null)? (price>a && a>b) : null;
+  // trend (EMA proxy): FMP profile doesn't carry SMA50/200, and /quote is
+  // Premium-blocked for micro-caps, so trend is unknown on the free plan.
+  const cTrend = null;
 
-  // momentum (RSI proxy)
+  // momentum (RSI proxy) = up on the day
   const cMom = chg!=null? chg>0 : null;
 
   const floatM = floatShares!=null? floatShares/1e6 : null;
@@ -355,9 +363,10 @@ function evalSymbol(m, q, prof, floatShares, cfg){
   const prime = floatM!=null && floatM<cfg.primefloat;
   const country = (prof && prof.country)? prof.country : (m.country||'—');
 
+  // ALERT on free plan = all *available* checks pass (trend excluded since unknowable)
   const checks=[cPrice,cMid,cRvol,cTrend,cMom,cFloat];
   const passCount=checks.filter(x=>x===true).length;
-  const hardPass = cPrice===true && cMid===true && cRvol===true && cTrend===true && cMom===true && cFloat===true;
+  const hardPass = cPrice===true && cMid===true && cRvol===true && cMom===true && cFloat===true;
 
   return {
     symbol:m.symbol, name:(prof&&prof.companyName)||m.name||"", country,
@@ -403,35 +412,56 @@ async function runScan(){
   if(!cand.length){ logLine("No $1–5 movers right now — loosen price or scan in market hours.",'w'); finish(); render([]); return; }
   logLine(`${cand.length} candidates in $${cfg.pmin}–$${cfg.pmax} → enriching`,'ok');
 
-  // 2) enrich each: quote + profile + float
-  const out=[]; let done=0, profFails=0, floatFails=0, qFails=0;
+  // 2) enrich — FREE PLAN STRATEGY:
+  //    FMP /quote is blocked for micro-caps (Premium endpoint), so we get
+  //    price / day range / volume from ALPACA (free, covers all symbols),
+  //    and use FMP /profile only for float, country, ETF flag, avg-volume.
+  const pick=(res)=>{ if(!res||!res.ok) return null; const d=res.data;
+    if(Array.isArray(d)) return d[0]||null;
+    if(d && typeof d==='object' && !d["Error Message"]) return d;
+    return null; };
+
+  // 2a) one batch call to Alpaca for ALL candidates (price/range/volume)
+  let alp={};
+  const alpBase=ALPACA();
+  if(alpBase){
+    try{
+      const syms=cand.map(c=>c.symbol).slice(0,50).join(",");
+      const ar=await fetch(alpBase+"/?symbols="+encodeURIComponent(syms));
+      if(ar.ok){ const ad=await ar.json(); if(ad && !ad.error) alp=ad; }
+    }catch(e){ logLine("Alpaca batch failed: "+(e.message||"network"),'w'); }
+  }
+  if(!alpBase) logLine("No Alpaca URL — price/range/RVOL limited. Add the Alpaca proxy above.",'w');
+  else if(!Object.keys(alp).length) logLine("Alpaca returned no data (market thin/closed?) — some cols may show ?.",'w');
+  else logLine(`Alpaca live data for ${Object.keys(alp).length}/${cand.length} symbols`,'ok');
+
+  const out=[]; let done=0, profFails=0, floatFails=0;
   for(const m of cand){
     const sym=m.symbol;
-    const qr=await fmp(`/quote?symbol=${sym}`);
-    const q = (qr.ok && Array.isArray(qr.data) && qr.data[0])? qr.data[0] : null;
-    if(!q){ qFails++; }
+    const a = alp[sym] || null;  // Alpaca: {price, prevClose, changePct, dayVolume, dayHigh, dayLow}
 
     const pr=await fmp(`/profile?symbol=${sym}`);
-    const prof = (pr.ok && Array.isArray(pr.data) && pr.data[0])? pr.data[0] : null;
+    const prof = pick(pr);
     if(!prof){ profFails++; }
 
     let floatShares=null;
     const fr=await fmp(`/shares-float?symbol=${sym}`);
-    if(fr.ok && Array.isArray(fr.data) && fr.data[0] && fr.data[0].floatShares!=null) floatShares=+fr.data[0].floatShares;
+    const fobj=pick(fr);
+    if(fobj && fobj.floatShares!=null) floatShares=+fobj.floatShares;
     else floatFails++;
 
-    // min volume + country + ETF (profile) filters
-    if(q && q.volume!=null && q.volume<cfg.minvol){ done++; setBar(done/cand.length); continue; }
+    // min volume + ETF filters (volume from Alpaca dayVolume, fallback movers volume)
+    const dvol = a&&a.dayVolume!=null ? a.dayVolume : m.volume;
+    if(dvol!=null && dvol<cfg.minvol){ done++; setBar(done/cand.length); continue; }
     if(cfg.hideEtf && prof && prof.isEtf===true){ done++; setBar(done/cand.length); continue; }
-    const row=evalSymbol(m,q,prof,floatShares,cfg);
+    const row=evalSymbol(m,a,prof,floatShares,cfg);
     if(cfg.country && row.country && row.country!==cfg.country){ done++; setBar(done/cand.length); continue; }
     out.push(row);
     done++; setBar(done/cand.length);
     await new Promise(r=>setTimeout(r,110));
   }
-  if(profFails===cand.length) logLine("Profile endpoint unavailable — RVOL/country may show ?.",'w');
+  if(profFails===cand.length) logLine("Profile endpoint unavailable — float/country may show ?.",'w');
   if(floatFails===cand.length) logLine("Float endpoint unavailable — float shown as ?.",'w');
-  if(qFails===cand.length) logLine("Quote endpoint returned nothing — check key/plan.",'e');
   logLine(`Done · ${out.length} shown · ${out.filter(o=>o.alert).length} full alerts`,'ok');
   finish(); render(out);
 }
@@ -479,7 +509,7 @@ function render(rows){
       <td>${tri(r.cMom)}<span class="rmeth proxy">~</span></td>
       <td>${r.floatM==null?'<span class="unk">?</span>':(r.cFloat?'<span class="yes">':'<span class="no">')+fmtNum(r.floatM,1)+'</span>'}</td>
       <td>${r.unusual?'<span class="unu">⚡ '+fmtNum(r.rvol,1)+'×</span>':'<span class="no">—</span>'}</td>
-      <td><span class="pill ${r.alert?'a':'b'}">${r.passCount}/6</span></td>
+      <td><span class="pill ${r.alert?'a':'b'}">${r.passCount}/5</span></td>
       <td class="l"><span class="expand" data-i="${i}">plan ▾</span></td>`;
     tb.appendChild(tr);
     const dr=document.createElement('tr'); dr.className="detail"; dr.style.display="none";
@@ -509,7 +539,7 @@ $("exportBtn").onclick=()=>{
   const lines=[head.join(",")];
   lastResults.forEach(r=>{const p=r.plan;
     lines.push([r.symbol,'"'+(r.name||"").replace(/"/g,"")+'"',r.country,fmtNum(r.price),fmtNum(r.chg),
-      fmtNum(r.rangePos,0),fmtNum(r.rvol,2),r.cTrend,r.cMom,fmtNum(r.floatM,2),r.unusual,r.passCount+"/6",r.alert,
+      fmtNum(r.rangePos,0),fmtNum(r.rvol,2),r.cTrend,r.cMom,fmtNum(r.floatM,2),r.unusual,r.passCount+"/5",r.alert,
       fmtNum(p.entry),fmtNum(p.stop),fmtNum(p.tp1),fmtNum(p.tp2),fmtNum(p.tp3)].join(","));});
   const blob=new Blob([lines.join("\n")],{type:"text/csv"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
@@ -517,7 +547,7 @@ $("exportBtn").onclick=()=>{
 };
 
 function updEst(){ const n=Math.max(1,+$("maxsym").value);
-  $("callEst").textContent=`≈ ${2+3*n} API calls / scan (movers + ${n}×[quote+profile+float])`; }
+  $("callEst").textContent=`≈ ${3+2*n} calls / scan (2 movers + 1 Alpaca batch + ${n}×[profile+float])`; }
 $("maxsym").oninput=updEst; updEst();
 
 function setupAuto(){ if(autoTimer){clearInterval(autoTimer);autoTimer=null;}
