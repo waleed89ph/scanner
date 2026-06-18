@@ -303,14 +303,19 @@ function logLine(msg,cls){ const l=$("log"); const d=document.createElement('div
   if(cls) d.className=cls; d.textContent=msg; l.appendChild(d); l.scrollTop=l.scrollHeight; }
 function setBar(p){ $("barfill").style.width=Math.round(p*100)+"%"; }
 
+let fmpLimitHit=false;
 async function fmp(path){
   const base=PROXY();
   if(!base){ return {ok:false,error:'Set your Cloudflare Worker URL at the top first'}; }
+  if(fmpLimitHit){ return {ok:false,error:'FMP daily limit reached (skipped)'}; }
   const url=base+path;   // worker maps /endpoint?params -> FMP /stable/endpoint?params&apikey=KEY
   try{
     const r=await fetch(url); const txt=await r.text(); let data;
     try{ data=JSON.parse(txt); }catch{ return {ok:false,error:`Bad JSON (HTTP ${r.status})`}; }
-    if(data && data["Error Message"]) return {ok:false,error:data["Error Message"]};
+    if(data && data["Error Message"]){
+      if(/Limit Reach/i.test(data["Error Message"])) fmpLimitHit=true;
+      return {ok:false,error:data["Error Message"]};
+    }
     if(typeof data==='string' && /Restricted Endpoint/i.test(data)) return {ok:false,error:'Restricted (not in your plan)'};
     if(data && typeof data==='object' && !Array.isArray(data) && /Restricted Endpoint/i.test(JSON.stringify(data))) return {ok:false,error:'Restricted (not in your plan)'};
     if(!r.ok) return {ok:false,error:`HTTP ${r.status}`};
@@ -328,7 +333,7 @@ function buildPlan(price, dayLow){
 // ---------- evaluate one symbol ----------
 // `a` = Alpaca data {price, prevClose, changePct, dayVolume, dayHigh, dayLow} (free, all symbols)
 // `prof` = FMP profile {country, isEtf, averageVolume, companyName, ...} (free)
-function evalSymbol(m, a, prof, floatShares, cfg){
+function evalSymbol(m, a, prof, floatShares, cfg, alpacaAvgVol){
   const price = (a&&a.price!=null)? a.price : m.price;
   const dayLow = a&&a.dayLow!=null? a.dayLow : null;
   const dayHigh = a&&a.dayHigh!=null? a.dayHigh : null;
@@ -341,10 +346,12 @@ function evalSymbol(m, a, prof, floatShares, cfg){
   let rangePos=null, cMid=null;
   if(dayHigh!=null && dayLow!=null && dayHigh>dayLow){ rangePos=(price-dayLow)/(dayHigh-dayLow)*100; cMid=rangePos>=50; }
 
-  // RVOL = today's volume (Alpaca) / 30-day avg volume (FMP profile)
-  const avgVol = (prof&&prof.averageVolume!=null)?prof.averageVolume
+  // RVOL = today's volume (Alpaca) / 20-day avg volume.
+  // Prefer Alpaca bars avg (no FMP needed); fall back to FMP profile avg.
+  const fmpAvg = (prof&&prof.averageVolume!=null)?prof.averageVolume
                : (prof&&prof.volAvg!=null)?prof.volAvg
                : (prof&&prof.avgVolume!=null)?prof.avgVolume : null;
+  const avgVol = alpacaAvgVol!=null ? alpacaAvgVol : fmpAvg;
   const vol = (a&&a.dayVolume!=null)? a.dayVolume : m.volume;
   const rvol = (vol && avgVol)? vol/avgVol : null;
   const cRvol = rvol!=null? rvol>=cfg.rvol : null;
@@ -379,6 +386,7 @@ function evalSymbol(m, a, prof, floatShares, cfg){
 
 // ---------- main scan ----------
 async function runScan(){
+  fmpLimitHit=false;
   const cfg={
     pmin:+$("pmin").value, pmax:+$("pmax").value, rvol:+$("rvol").value,
     unusual:+$("unusual").value, floatmax:+$("floatmax").value, primefloat:+$("primefloat").value,
@@ -451,7 +459,7 @@ async function runScan(){
     return null; };
 
   // 2a) one batch call to Alpaca for ALL candidates (price/range/volume)
-  let alp={};
+  let alp={}, alpAvg={};
   const alpBase=ALPACA();
   if(alpBase){
     try{
@@ -459,6 +467,12 @@ async function runScan(){
       const ar=await fetch(alpBase+"/?symbols="+encodeURIComponent(syms));
       if(ar.ok){ const ad=await ar.json(); if(ad && !ad.error) alp=ad; }
     }catch(e){ logLine("Alpaca batch failed: "+(e.message||"network"),'w'); }
+    // 2a-2) batch daily bars → average volume for RVOL (no FMP needed)
+    try{
+      const syms=cand.map(c=>c.symbol).slice(0,50).join(",");
+      const br=await fetch(alpBase+"/bars?days=20&symbols="+encodeURIComponent(syms));
+      if(br.ok){ const bd=await br.json(); if(bd && !bd.error) alpAvg=bd; }
+    }catch(e){ /* RVOL will fall back to FMP avgVol if available */ }
   }
   if(!alpBase) logLine("No Alpaca URL — price/range/RVOL limited. Add the Alpaca proxy above.",'w');
   else if(!Object.keys(alp).length) logLine("Alpaca returned no data (market thin/closed?) — some cols may show ?.",'w');
@@ -488,7 +502,7 @@ async function runScan(){
     const dvol = a&&a.dayVolume!=null ? a.dayVolume : m.volume;
     if(dvol!=null && dvol<cfg.minvol){ done++; setBar(done/cand.length); continue; }
     if(cfg.hideEtf && prof && prof.isEtf===true){ done++; setBar(done/cand.length); continue; }
-    const row=evalSymbol(m,a,prof,floatShares,cfg);
+    const row=evalSymbol(m,a,prof,floatShares,cfg,(alpAvg[sym]&&alpAvg[sym].avgVolume)||null);
     if(cfg.country && row.country && row.country!==cfg.country){ done++; setBar(done/cand.length); continue; }
     out.push(row);
     done++; setBar(done/cand.length);
