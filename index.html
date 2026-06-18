@@ -161,7 +161,7 @@
     <div class="brand">
       <div>
         <div class="tick">MICRO<span class="lo">&middot;</span>CAP LONG SCANNER<span class="planbadge">FREE PLAN</span></div>
-        <div class="sub">$1&ndash;$5 &bull; long-only &bull; FMP most-actives + gainers</div>
+        <div class="sub">$1&ndash;$5 &bull; long-only &bull; Alpaca screener + FMP float</div>
       </div>
     </div>
     <div style="text-align:right">
@@ -390,26 +390,55 @@ async function runScan(){
   $("emptyState").style.display="none"; $("log").innerHTML=""; setBar(0);
   logLine(`Scan started · ${session().label}`,'w');
 
-  // 1) universe from movers
-  let pool=[];
+  // 1) universe from movers — ALPACA FIRST (free, high limit), FMP fallback
+  let pool=[]; let usedSource="";
   const wantA = cfg.universe!=='gainers', wantG = cfg.universe!=='actives';
-  if(wantA){ const r=await fmp(`/most-actives`);
-    if(r.ok&&Array.isArray(r.data)){ pool.push(...r.data); logLine(`most-actives ok · ${r.data.length}`,'ok'); }
-    else logLine(`most-actives failed: ${r.error}`,'e'); }
-  if(wantG){ const r=await fmp(`/biggest-gainers`);
-    if(r.ok&&Array.isArray(r.data)){ pool.push(...r.data); logLine(`biggest-gainers ok · ${r.data.length}`,'ok'); }
-    else logLine(`biggest-gainers failed: ${r.error}`,'w'); }
-  if(!pool.length){ logLine("No universe data — check key/plan.",'e'); finish(); render([]); return; }
+  const alpBaseU = ALPACA();
 
-  // dedupe, price filter, ETF filter, sort by |%change|, cap
+  // 1a) try Alpaca screener (doesn't touch FMP's 250/day limit)
+  if(alpBaseU){
+    try {
+      if(wantG){
+        const r=await fetch(alpBaseU+"/movers?top=50");
+        if(r.ok){ const d=await r.json();
+          const g=(d&&d.gainers)||[];
+          for(const x of g){ pool.push({symbol:x.symbol, price:+x.price, changesPercentage:+x.percent_change, name:"", volume:null}); }
+          if(g.length) { logLine(`Alpaca movers ok · ${g.length} gainers`,'ok'); usedSource="alpaca"; }
+        }
+      }
+      if(wantA){
+        const r=await fetch(alpBaseU+"/most-actives?top=50");
+        if(r.ok){ const d=await r.json();
+          const a=(d&&d.most_actives)||[];
+          for(const x of a){ pool.push({symbol:x.symbol, price:null, changesPercentage:null, name:"", volume:+x.volume}); }
+          if(a.length){ logLine(`Alpaca most-actives ok · ${a.length}`,'ok'); usedSource="alpaca"; }
+        }
+      }
+    } catch(e){ logLine("Alpaca screener error: "+(e.message||"network"),'w'); }
+  }
+
+  // 1b) fallback to FMP only if Alpaca gave nothing (saves FMP quota)
+  if(!pool.length){
+    if(wantA){ const r=await fmp(`/most-actives`);
+      if(r.ok&&Array.isArray(r.data)){ pool.push(...r.data); logLine(`FMP most-actives ok · ${r.data.length}`,'ok'); usedSource="fmp"; }
+      else logLine(`FMP most-actives failed: ${r.error}`,'e'); }
+    if(wantG){ const r=await fmp(`/biggest-gainers`);
+      if(r.ok&&Array.isArray(r.data)){ pool.push(...r.data); logLine(`FMP biggest-gainers ok · ${r.data.length}`,'ok'); usedSource="fmp"; }
+      else logLine(`FMP biggest-gainers failed: ${r.error}`,'w'); }
+  }
+  if(!pool.length){ logLine("No universe data — Alpaca screener empty and FMP limit/key issue. Try in market hours.",'e'); finish(); render([]); return; }
+
+  // Alpaca screener gives price for gainers but not for most-actives; we'll
+  // fill any missing price from the batch snapshot during enrichment, so
+  // pre-filter on price only when we actually have it.
   const seen=new Set(); let cand=[];
   for(const s of pool){ if(!s.symbol||seen.has(s.symbol)) continue; seen.add(s.symbol);
-    const px=+s.price; if(!(px>=cfg.pmin && px<=cfg.pmax)) continue;
+    if(s.price!=null){ const px=+s.price; if(!(px>=cfg.pmin && px<=cfg.pmax)) continue; }
     if(cfg.hideEtf && /\b(ETF|ETN)\b/i.test(s.name||'')) continue;
     cand.push(s); }
   cand.sort((x,y)=>Math.abs(+y.changesPercentage||0)-Math.abs(+x.changesPercentage||0));
-  cand=cand.slice(0,cfg.maxsym);
-  if(!cand.length){ logLine("No $1–5 movers right now — loosen price or scan in market hours.",'w'); finish(); render([]); return; }
+  cand=cand.slice(0, Math.max(cfg.maxsym*2, cfg.maxsym)); // keep extra; price filter after snapshot trims
+  if(!cand.length){ logLine("No candidates after filters — loosen price/float or scan in market hours.",'w'); finish(); render([]); return; }
   logLine(`${cand.length} candidates in $${cfg.pmin}–$${cfg.pmax} → enriching`,'ok');
 
   // 2) enrich — FREE PLAN STRATEGY:
@@ -437,8 +466,13 @@ async function runScan(){
 
   const out=[]; let done=0, profFails=0, floatFails=0;
   for(const m of cand){
+    if(out.length>=cfg.maxsym) break; // cap reached
     const sym=m.symbol;
     const a = alp[sym] || null;  // Alpaca: {price, prevClose, changePct, dayVolume, dayHigh, dayLow}
+
+    // price filter using live snapshot price (Alpaca most-actives had no price)
+    const livePx = a&&a.price!=null ? a.price : (m.price!=null? +m.price : null);
+    if(livePx!=null && !(livePx>=cfg.pmin && livePx<=cfg.pmax)){ done++; setBar(done/cand.length); continue; }
 
     const pr=await fmp(`/profile?symbol=${sym}`);
     const prof = pick(pr);
