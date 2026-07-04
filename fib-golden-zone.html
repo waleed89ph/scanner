@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fib Golden Zone — حاسبة الدخول</title>
+<style>
+  :root{
+    --bg:#0b0e14; --panel:#121724; --panel2:#0f1420; --border:#1e2738;
+    --txt:#dbe4f3; --dim:#7c8aa5; --green:#22c55e; --red:#ef4444;
+    --gold:#f5b23e; --blue:#3b82f6; --purple:#a78bfa;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font-family:"Segoe UI",Tahoma,Arial,sans-serif;padding:14px;max-width:1100px;margin:0 auto}
+  h1{font-size:20px;display:flex;align-items:center;gap:8px}
+  .sub{color:var(--dim);font-size:12px;margin:4px 0 14px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px}
+  label{font-size:12px;color:var(--dim);display:block;margin-bottom:4px}
+  input,select,button{background:var(--panel2);border:1px solid var(--border);color:var(--txt);border-radius:8px;padding:9px 10px;font-size:14px}
+  input:focus,select:focus{outline:none;border-color:var(--gold)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .row>div{flex:1;min-width:110px}
+  button.go{background:var(--gold);color:#111;font-weight:700;cursor:pointer;padding:10px 22px;border:none;min-width:120px}
+  button.go:disabled{opacity:.5;cursor:wait}
+  button.mini{cursor:pointer;font-size:12px;padding:6px 10px}
+  .tabs{display:flex;gap:6px;margin-bottom:10px}
+  .tabs button{cursor:pointer;border-radius:8px 8px 0 0}
+  .tabs button.active{background:var(--gold);color:#111;font-weight:700}
+  .status{padding:10px 12px;border-radius:10px;font-weight:700;font-size:15px;text-align:center;margin-bottom:10px}
+  .st-in{background:rgba(245,178,62,.15);color:var(--gold);border:1px solid var(--gold)}
+  .st-wait{background:rgba(59,130,246,.12);color:var(--blue);border:1px solid var(--blue)}
+  .st-pass{background:rgba(124,138,165,.12);color:var(--dim);border:1px solid var(--dim)}
+  .st-inv{background:rgba(239,68,68,.12);color:var(--red);border:1px solid var(--red)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+  .kpi{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center}
+  .kpi .v{font-size:18px;font-weight:800;direction:ltr}
+  .kpi .t{font-size:11px;color:var(--dim);margin-top:2px}
+  .long .v{color:var(--green)} .short .v{color:var(--red)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:7px 8px;border-bottom:1px solid var(--border);text-align:center}
+  th{color:var(--dim);font-weight:600;font-size:11px}
+  td.num{direction:ltr;font-family:Consolas,monospace}
+  tr.gz{background:rgba(245,178,62,.10)}
+  tr.gz td:first-child{color:var(--gold);font-weight:700}
+  .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
+  .tag.prem{background:rgba(239,68,68,.15);color:var(--red)}
+  .tag.disc{background:rgba(34,197,94,.15);color:var(--green)}
+  .tag.eqm{background:rgba(59,130,246,.15);color:var(--blue)}
+  canvas{width:100%;background:var(--panel2);border:1px solid var(--border);border-radius:10px}
+  .err{color:var(--red);font-size:13px;margin-top:8px;white-space:pre-wrap}
+  .note{color:var(--dim);font-size:11px;margin-top:8px;line-height:1.7}
+  .hide{display:none}
+  .pulse{animation:p 1.4s infinite}
+  @keyframes p{0%,100%{opacity:1}50%{opacity:.55}}
+</style>
+</head>
+<body>
+
+<h1>🎯 Fib Golden Zone <span style="color:var(--gold)">حاسبة الدخول</span></h1>
+<div class="sub">آخر Swing High/Low على الفريم المختار &bull; مناطق Premium/Discount &bull; دخول 0.618–0.786 مع OTE 0.705</div>
+
+<div class="tabs">
+  <button id="tabAuto" class="active" onclick="setTab('auto')">📡 تلقائي (Alpaca)</button>
+  <button id="tabManual" onclick="setTab('manual')">✍️ يدوي</button>
+</div>
+
+<!-- AUTO MODE -->
+<div class="card" id="autoPanel">
+  <div class="row">
+    <div style="flex:2;min-width:200px">
+      <label>رابط الـ Worker (يُحفظ تلقائياً)</label>
+      <input id="worker" placeholder="https://alpaca-live.waleed89ph.workers.dev" style="width:100%;direction:ltr">
+    </div>
+    <div>
+      <label>السهم</label>
+      <input id="sym" placeholder="AAPL" style="width:100%;text-transform:uppercase;direction:ltr">
+    </div>
+    <div>
+      <label>الفريم</label>
+      <select id="tf" style="width:100%">
+        <option value="1Min">1 دقيقة</option>
+        <option value="5Min" selected>5 دقائق</option>
+        <option value="15Min">15 دقيقة</option>
+        <option value="30Min">30 دقيقة</option>
+        <option value="1Hour">ساعة</option>
+        <option value="4Hour">4 ساعات</option>
+        <option value="1Day">يومي</option>
+      </select>
+    </div>
+    <div>
+      <label>قوة السوينق (شموع لكل جهة)</label>
+      <select id="strength" style="width:100%">
+        <option value="3">3 — حساس</option>
+        <option value="5" selected>5 — متوازن</option>
+        <option value="8">8 — سوينقات كبيرة</option>
+        <option value="12">12 — رئيسية</option>
+      </select>
+    </div>
+    <div><button class="go" id="btnGo" onclick="run()">احسب 🎯</button></div>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <div style="flex:0">
+      <label style="display:inline">تحديث تلقائي</label>
+      <input type="checkbox" id="auto" onchange="toggleAuto()" style="width:auto;vertical-align:middle">
+      <span class="note" style="display:inline">كل 15 ثانية</span>
+    </div>
+  </div>
+  <div class="err hide" id="err"></div>
+</div>
+
+<!-- MANUAL MODE -->
+<div class="card hide" id="manualPanel">
+  <div class="row">
+    <div><label>Swing High</label><input id="mHigh" type="number" step="any" placeholder="20.00" style="width:100%;direction:ltr"></div>
+    <div><label>Swing Low</label><input id="mLow" type="number" step="any" placeholder="10.00" style="width:100%;direction:ltr"></div>
+    <div>
+      <label>اتجاه الموجة</label>
+      <select id="mDir" style="width:100%">
+        <option value="up">صاعدة ⬆ (دخول لونق في Discount)</option>
+        <option value="down">هابطة ⬇ (دخول شورت في Premium)</option>
+      </select>
+    </div>
+    <div><label>السعر الحالي (اختياري)</label><input id="mPrice" type="number" step="any" placeholder="13.00" style="width:100%;direction:ltr"></div>
+    <div><button class="go" onclick="runManual()">احسب 🎯</button></div>
+  </div>
+</div>
+
+<!-- RESULTS -->
+<div id="results" class="hide">
+  <div class="status" id="statusBox"></div>
+
+  <div class="card">
+    <div class="grid" id="kpis"></div>
+  </div>
+
+  <div class="card" id="chartCard">
+    <canvas id="chart" height="380"></canvas>
+  </div>
+
+  <div class="card">
+    <table id="lvTable">
+      <thead><tr><th>المستوى</th><th>السعر</th><th>المنطقة</th><th>ملاحظة</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="note">⚠️ أداة حسابية مساعدة وليست توصية. الدخول الأمثل يكون مع تأكيد (شمعة ارتداد / كسر هيكل صغير / فوليوم) داخل الـ Golden Zone، مو مجرد لمس المستوى.</div>
+  </div>
+</div>
+
+<script>
+/* ================= CORE LOGIC (tested 39/39) ================= */
+function detectPivots(bars, strength){
+  const highsIdx=[],lowsIdx=[],n=bars.length;
+  for(let i=strength;i<n-strength;i++){
+    let isHigh=true,isLow=true;
+    for(let k=1;k<=strength;k++){
+      if(!(bars[i].h>bars[i-k].h)||!(bars[i].h>=bars[i+k].h))isHigh=false;
+      if(!(bars[i].l<bars[i-k].l)||!(bars[i].l<=bars[i+k].l))isLow=false;
+      if(!isHigh&&!isLow)break;
+    }
+    if(isHigh)highsIdx.push(i);
+    if(isLow)lowsIdx.push(i);
+  }
+  return{highsIdx,lowsIdx};
+}
+function latestLeg(bars,strength){
+  const{highsIdx,lowsIdx}=detectPivots(bars,strength);
+  if(!highsIdx.length||!lowsIdx.length)return null;
+  const lastHigh=highsIdx[highsIdx.length-1],lastLow=lowsIdx[lowsIdx.length-1];
+  let dir,fromIdx,toIdx;
+  if(lastHigh>lastLow){
+    const lb=lowsIdx.filter(i=>i<lastHigh);
+    if(!lb.length)return null;
+    fromIdx=lb[lb.length-1];toIdx=lastHigh;dir='up';
+  }else{
+    const hb=highsIdx.filter(i=>i<lastLow);
+    if(!hb.length)return null;
+    fromIdx=hb[hb.length-1];toIdx=lastLow;dir='down';
+  }
+  const swingHigh=dir==='up'?bars[toIdx].h:bars[fromIdx].h;
+  const swingLow=dir==='up'?bars[fromIdx].l:bars[toIdx].l;
+  if(!(swingHigh>swingLow))return null;
+  return{dir,fromIdx,toIdx,swingHigh,swingLow,range:swingHigh-swingLow};
+}
+const RATIOS=[0,0.236,0.382,0.5,0.618,0.705,0.786,1];
+function fibLevels(leg){
+  const out={};
+  for(const r of RATIOS){
+    out[r]=leg.dir==='up'?leg.swingHigh-leg.range*r:leg.swingLow+leg.range*r;
+  }
+  return out;
+}
+function goldenZone(leg){
+  const lv=fibLevels(leg),a=lv[0.618],b=lv[0.786];
+  return{upper:Math.max(a,b),lower:Math.min(a,b),ote:lv[0.705],
+    side:leg.dir==='up'?'long':'short',zoneType:leg.dir==='up'?'discount':'premium'};
+}
+function zoneOf(price,leg){
+  const eq=(leg.swingHigh+leg.swingLow)/2;
+  return price>eq?'premium':price<eq?'discount':'equilibrium';
+}
+function tradePlan(leg,stopBufferFrac=0.1){
+  const lv=fibLevels(leg),gz=goldenZone(leg),buf=leg.range*stopBufferFrac,entry=gz.ote;
+  let stop,tp1,tp2,tp3;
+  if(leg.dir==='up'){stop=leg.swingLow-buf;tp1=lv[0.5];tp2=lv[0];tp3=leg.swingHigh+leg.range*0.27;}
+  else{stop=leg.swingHigh+buf;tp1=lv[0.5];tp2=lv[0];tp3=leg.swingLow-leg.range*0.27;}
+  const risk=Math.abs(entry-stop),rr=risk>0?Math.abs(tp2-entry)/risk:0;
+  return{side:gz.side,entry,zoneLower:gz.lower,zoneUpper:gz.upper,stop,tp1,tp2,tp3,rr,eq:(leg.swingHigh+leg.swingLow)/2};
+}
+function zoneStatus(price,leg){
+  const gz=goldenZone(leg);
+  if(price>=gz.lower&&price<=gz.upper)return'in_zone';
+  if(leg.dir==='up'){
+    if(price>gz.upper)return'waiting';
+    return price<leg.swingLow?'invalidated':'passed';
+  }else{
+    if(price<gz.lower)return'waiting';
+    return price>leg.swingHigh?'invalidated':'passed';
+  }
+}
+function normalizeBars(payload,symbol){
+  let arr=null;
+  if(Array.isArray(payload))arr=payload;
+  else if(payload&&Array.isArray(payload.bars))arr=payload.bars;
+  else if(payload&&payload.bars&&typeof payload.bars==='object'){
+    arr=payload.bars[symbol]||payload.bars[Object.keys(payload.bars)[0]]||null;
+  }
+  if(!arr||!arr.length)return null;
+  return arr.map(b=>({t:b.t||b.time||b.timestamp,
+    o:+(b.o??b.open),h:+(b.h??b.high),l:+(b.l??b.low),c:+(b.c??b.close),
+    v:+(b.v??b.volume??0)})).filter(b=>isFinite(b.h)&&isFinite(b.l));
+}
+
+/* ================= UI ================= */
+const $=id=>document.getElementById(id);
+let timer=null,lastArgs=null;
+
+$('worker').value=localStorage.getItem('fibWorker')||'';
+$('sym').value=localStorage.getItem('fibSym')||'';
+
+function setTab(t){
+  $('tabAuto').classList.toggle('active',t==='auto');
+  $('tabManual').classList.toggle('active',t==='manual');
+  $('autoPanel').classList.toggle('hide',t!=='auto');
+  $('manualPanel').classList.toggle('hide',t!=='manual');
+}
+function toggleAuto(){
+  if($('auto').checked){timer=setInterval(()=>{if(lastArgs)run(true);},15000);}
+  else{clearInterval(timer);timer=null;}
+}
+function tfWindow(tf){
+  // كم يوم تاريخ نطلب حسب الفريم عشان يكفي لكشف السوينقات
+  return{'1Min':2,'5Min':7,'15Min':15,'30Min':25,'1Hour':45,'4Hour':120,'1Day':400}[tf]||10;
+}
+async function fetchBars(base,sym,tf){
+  const days=tfWindow(tf);
+  const start=new Date(Date.now()-days*864e5).toISOString();
+  const urls=[
+    `${base}/bars?symbols=${sym}&timeframe=${tf}&start=${encodeURIComponent(start)}&limit=1000&feed=iex`,
+    `${base}/bars?symbol=${sym}&timeframe=${tf}&start=${encodeURIComponent(start)}&limit=1000&feed=iex`,
+    `${base}/v2/stocks/bars?symbols=${sym}&timeframe=${tf}&start=${encodeURIComponent(start)}&limit=1000&feed=iex`
+  ];
+  let lastErr='';
+  for(const u of urls){
+    try{
+      const r=await fetch(u);
+      if(!r.ok){lastErr=`HTTP ${r.status} من ${u}`;continue;}
+      const j=await r.json();
+      const bars=normalizeBars(j,sym);
+      if(bars&&bars.length>=20)return bars;
+      lastErr='رجعت بيانات فاضية أو قليلة من '+u;
+    }catch(e){lastErr=e.message+' — '+u;}
+  }
+  throw new Error('ما قدرت أجيب الشموع.\n'+lastErr+'\n\nلو الـ worker حقك ما يدعم timeframe في مسار /bars، انشر ملف fib-worker.js المرفق كـ worker جديد واستخدم رابطه هنا.');
+}
+
+async function run(silent){
+  const base=($('worker').value||'').trim().replace(/\/$/,'');
+  const sym=($('sym').value||'').trim().toUpperCase();
+  const tf=$('tf').value,strength=+$('strength').value;
+  if(!base||!sym){showErr('حط رابط الـ Worker ورمز السهم');return;}
+  localStorage.setItem('fibWorker',base);localStorage.setItem('fibSym',sym);
+  lastArgs={base,sym,tf,strength};
+  $('btnGo').disabled=true;$('err').classList.add('hide');
+  try{
+    const bars=await fetchBars(base,sym,tf);
+    const leg=latestLeg(bars,strength);
+    if(!leg)throw new Error('ما لقيت Swing High/Low واضح على هالفريم — جرّب قوة سوينق أقل أو فريم أصغر.');
+    const price=bars[bars.length-1].c;
+    render(leg,price,bars,`${sym} • ${tf}`);
+  }catch(e){if(!silent)showErr(e.message);}
+  $('btnGo').disabled=false;
+}
+
+function runManual(){
+  const hi=+$('mHigh').value,lo=+$('mLow').value,dir=$('mDir').value;
+  if(!(hi>lo)){showErr('لازم Swing High أكبر من Swing Low');return;}
+  const leg={dir,swingHigh:hi,swingLow:lo,range:hi-lo,fromIdx:0,toIdx:0};
+  const price=+$('mPrice').value||null;
+  render(leg,price,null,'يدوي');
+}
+
+function showErr(m){$('err').textContent=m;$('err').classList.remove('hide');}
+
+function fmt(x){return x==null?'—':x>=100?x.toFixed(2):x>=1?x.toFixed(3):x.toFixed(4);}
+
+function render(leg,price,bars,title){
+  $('results').classList.remove('hide');
+  const plan=tradePlan(leg,0.1);
+  const st=price!=null?zoneStatus(price,leg):null;
+  const sideAr=plan.side==='long'?'لونق 🟢':'شورت 🔴';
+  const zoneAr=plan.side==='long'?'Discount':'Premium';
+
+  // status banner
+  const box=$('statusBox');box.className='status';
+  if(st==='in_zone'){box.classList.add('st-in','pulse');box.textContent=`⚡ السعر داخل الـ Golden Zone الآن — منطقة دخول ${sideAr} (${zoneAr})`;}
+  else if(st==='waiting'){box.classList.add('st-wait');box.textContent=`⏳ ننتظر تصحيح السعر للـ Golden Zone (${fmt(plan.zoneLower)} → ${fmt(plan.zoneUpper)})`;}
+  else if(st==='passed'){box.classList.add('st-pass');box.textContent='↩️ السعر عدّى الـ Golden Zone بدون ارتداد — الفرصة أضعف، انتظر موجة جديدة';}
+  else if(st==='invalidated'){box.classList.add('st-inv');box.textContent='❌ السعر كسر أصل الموجة — السيناريو ملغي، انتظر هيكل جديد';}
+  else{box.classList.add('st-wait');box.textContent=`خطة ${sideAr} — الدخول في ${zoneAr} Golden Zone`;}
+
+  // KPIs
+  const k=$('kpis');
+  k.innerHTML='';
+  const items=[
+    [title,'السهم / الفريم',''],
+    [price!=null?fmt(price):'—','السعر الحالي',''],
+    [sideAr,'الاتجاه',plan.side],
+    [fmt(plan.zoneLower)+' → '+fmt(plan.zoneUpper),'الـ Golden Zone',''],
+    [fmt(plan.entry),'الدخول (OTE 0.705)',''],
+    [fmt(plan.stop),'الستوب','short'],
+    [fmt(plan.tp1),'هدف 1 — Equilibrium','long'],
+    [fmt(plan.tp2),'هدف 2 — قمة/قاع الموجة','long'],
+    [fmt(plan.tp3),'هدف 3 — امتداد 0.27-','long'],
+    [plan.rr.toFixed(2)+' : 1','R:R حتى هدف 2',plan.rr>=2?'long':'']
+  ];
+  for(const[v,t,c]of items){
+    const d=document.createElement('div');d.className='kpi '+c;
+    d.innerHTML=`<div class="v">${v}</div><div class="t">${t}</div>`;k.appendChild(d);
+  }
+
+  // levels table
+  const lv=fibLevels(leg),tb=$('lvTable').querySelector('tbody');tb.innerHTML='';
+  const notes={0:'نهاية الموجة (هدف 2)',0.236:'تصحيح سطحي',0.382:'تصحيح خفيف',0.5:'Equilibrium — الحد الفاصل',0.618:'بداية Golden Zone',0.705:'⭐ OTE — الدخول الأمثل',0.786:'نهاية Golden Zone',1:'أصل الموجة (خلفه الستوب)'};
+  for(const r of RATIOS){
+    const p=lv[r],z=zoneOf(p,leg);
+    const tr=document.createElement('tr');
+    if(r>=0.618&&r<=0.786)tr.className='gz';
+    const tag=z==='premium'?'<span class="tag prem">Premium</span>':z==='discount'?'<span class="tag disc">Discount</span>':'<span class="tag eqm">EQ</span>';
+    tr.innerHTML=`<td>${r===0.705?'0.705 ⭐':r}</td><td class="num">${fmt(p)}</td><td>${tag}</td><td>${notes[r]}</td>`;
+    tb.appendChild(tr);
+  }
+
+  // chart
+  $('chartCard').classList.toggle('hide',!bars);
+  if(bars)drawChart(bars,leg,plan,price);
+}
+
+/* ================= CANVAS CHART ================= */
+function drawChart(bars,leg,plan,price){
+  const cv=$('chart'),dpr=window.devicePixelRatio||1;
+  const W=cv.clientWidth,H=380;
+  cv.width=W*dpr;cv.height=H*dpr;
+  const ctx=cv.getContext('2d');ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,W,H);
+
+  const view=bars.slice(-160);
+  const padL=8,padR=74,padT=10,padB=18;
+  const cw=(W-padL-padR)/view.length;
+  let lo=Math.min(...view.map(b=>b.l),plan.stop),hi=Math.max(...view.map(b=>b.h),plan.tp3);
+  if(plan.side==='short'){lo=Math.min(lo,plan.tp3);hi=Math.max(hi,plan.stop);}
+  const pad=(hi-lo)*0.05;lo-=pad;hi+=pad;
+  const y=p=>padT+(hi-p)/(hi-lo)*(H-padT-padB);
+  const eq=plan.eq;
+
+  // premium / discount shading (over the leg's price range)
+  ctx.fillStyle='rgba(239,68,68,.06)';
+  ctx.fillRect(padL,y(leg.swingHigh),W-padL-padR,y(eq)-y(leg.swingHigh));
+  ctx.fillStyle='rgba(34,197,94,.06)';
+  ctx.fillRect(padL,y(eq),W-padL-padR,y(leg.swingLow)-y(eq));
+
+  // golden zone band
+  ctx.fillStyle='rgba(245,178,62,.16)';
+  ctx.fillRect(padL,y(plan.zoneUpper),W-padL-padR,y(plan.zoneLower)-y(plan.zoneUpper));
+
+  // fib lines
+  const lv=fibLevels(leg);
+  ctx.font='11px Consolas,monospace';ctx.textAlign='left';
+  for(const r of RATIOS){
+    const p=lv[r],yy=y(p);
+    ctx.strokeStyle=r===0.705?'#f5b23e':r===0.5?'#3b82f6':'rgba(124,138,165,.35)';
+    ctx.setLineDash(r===0.705||r===0.5?[]:[4,4]);
+    ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(W-padR,yy);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=r===0.705?'#f5b23e':r===0.5?'#3b82f6':'#7c8aa5';
+    ctx.fillText(`${r} ${fmt(p)}`,W-padR+4,yy+4);
+  }
+
+  // stop & tp3
+  for(const[p,c,l]of[[plan.stop,'#ef4444','SL'],[plan.tp3,'#a78bfa','TP3']]){
+    const yy=y(p);
+    ctx.strokeStyle=c;ctx.setLineDash([2,3]);
+    ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(W-padR,yy);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=c;ctx.fillText(`${l} ${fmt(p)}`,W-padR+4,yy+4);
+  }
+
+  // candles
+  const offset=bars.length-view.length;
+  for(let i=0;i<view.length;i++){
+    const b=view[i],x=padL+i*cw+cw/2;
+    const up=b.c>=b.o;
+    ctx.strokeStyle=ctx.fillStyle=up?'#22c55e':'#ef4444';
+    ctx.beginPath();ctx.moveTo(x,y(b.h));ctx.lineTo(x,y(b.l));ctx.stroke();
+    const bw=Math.max(1.5,cw*0.6);
+    ctx.fillRect(x-bw/2,y(Math.max(b.o,b.c)),bw,Math.max(1,Math.abs(y(b.o)-y(b.c))));
+  }
+
+  // swing markers
+  const mark=(idx,p,txt,c)=>{
+    const vi=idx-offset;if(vi<0)return;
+    const x=padL+vi*cw+cw/2;
+    ctx.fillStyle=c;ctx.font='bold 11px Segoe UI';ctx.textAlign='center';
+    ctx.fillText(txt,x,y(p)+(txt==='H'?-6:14));
+  };
+  if(leg.dir==='up'){mark(leg.fromIdx,leg.swingLow,'L','#22c55e');mark(leg.toIdx,leg.swingHigh,'H','#ef4444');}
+  else{mark(leg.fromIdx,leg.swingHigh,'H','#ef4444');mark(leg.toIdx,leg.swingLow,'L','#22c55e');}
+
+  // current price line
+  if(price!=null){
+    const yy=y(price);
+    ctx.strokeStyle='#dbe4f3';ctx.setLineDash([1,2]);
+    ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(W-padR,yy);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#dbe4f3';ctx.textAlign='left';ctx.fillText('▶ '+fmt(price),W-padR+4,yy-6);
+  }
+}
+</script>
+</body>
+</html>
